@@ -193,6 +193,10 @@ final List<Item> items = [
   ),
 ];
 
+// Constants for button text
+const cancelText = 'Cancel';
+const doneText = 'Done';
+
 class ItemListScreen extends StatelessWidget {
   const ItemListScreen({super.key});
 
@@ -241,6 +245,7 @@ class ModifiersScreenDialog extends StatefulWidget {
 
 class _ModifiersScreenDialogState extends State<ModifiersScreenDialog> {
   late ModifiersScreen originalModifiersScreenState;
+  bool isDirty = false;
 
   @override
   void initState() {
@@ -267,6 +272,7 @@ class _ModifiersScreenDialogState extends State<ModifiersScreenDialog> {
             Expanded(
               child: ListView.builder(
                 itemCount: widget.modifiersScreen.modifiers.length,
+                itemExtent: 56.0, // Fixed height for each item
                 itemBuilder: (context, index) {
                   final modifier = widget.modifiersScreen.modifiers[index];
                   return ListTile(
@@ -287,18 +293,20 @@ class _ModifiersScreenDialogState extends State<ModifiersScreenDialog> {
       ),
       actions: [
         TextButton(
-          child: const Text('Cancel'),
+          child: const Text(cancelText),
           onPressed: () {
-            // Revert to original state including child modifiers
-            _revertToOriginalState();
-            Navigator.of(context).pop();
+            // Revert to original state if changes were made
+            if (isDirty) {
+              _revertToOriginalState();
+            }
+            Navigator.of(context).pop('CANCEL');
           },
         ),
         TextButton(
-          child: const Text('Done'),
+          child: const Text(doneText),
           onPressed: () {
-            // Save changes and cancel the dialog
-            Navigator.of(context).pop();
+            // Save changes and dismiss the dialog
+            Navigator.of(context).pop('DONE');
           },
         ),
       ],
@@ -307,26 +315,31 @@ class _ModifiersScreenDialogState extends State<ModifiersScreenDialog> {
 
   // Handle tapping on a modifier
   void _onModifierTap(Modifier modifier) async {
-    if (modifier.isSelected) {
-      // Unselect modifier and its children recursively
-      setState(() => _unselectModifiers(modifier));
-    } else {
-      // Select modifier and show its child modifiers
-      setState(() => modifier.isSelected = true);
-      if (modifier.modifiersScreens.isNotEmpty) {
-        for (final modifierScreen in modifier.modifiersScreens) {
-          await _showModifiersDialog(context, modifierScreen);
-        }
+    setState(() {
+      isDirty = true; // Track changes
+      if (modifier.isSelected) {
+        // Unselect modifier and its children recursively
+        _unselectModifiers(modifier);
+      } else {
+        // Select modifier and show its child modifiers
+        modifier.isSelected = true;
+      }
+    });
+
+    // Lazy load child modifiers
+    if (modifier.modifiersScreens.isNotEmpty && modifier.isSelected) {
+      for (final modifierScreen in modifier.modifiersScreens) {
+        await _showModifiersScreenDialog(context, modifierScreen);
       }
     }
   }
 
-  // Unselect a modifier and its children recursively
+  // Unselect modifier and all its descendants
   void _unselectModifiers(Modifier modifier) {
     modifier.isSelected = false;
-    for (final modifiersScreen in modifier.modifiersScreens) {
-      for (final modifier in modifiersScreen.modifiers) {
-        _unselectModifiers(modifier);
+    for (final modifierScreen in modifier.modifiersScreens) {
+      for (final childModifier in modifierScreen.modifiers) {
+        _unselectModifiers(childModifier);
       }
     }
   }
@@ -350,16 +363,14 @@ class _ModifiersScreenDialogState extends State<ModifiersScreenDialog> {
     }
   }
 
-  // Show modifiers in a new dialog
-  Future<T?> _showModifiersDialog<T>(
-      BuildContext context, ModifiersScreen modifiersScreen) async {
-    final value = showDialog<T>(
+  // Show the child modifier screen dialog
+  Future<T?> _showModifiersScreenDialog<T>(
+      BuildContext context, ModifiersScreen modifierScreen) {
+    return showDialog(
       context: context,
       builder: (BuildContext context) {
-        return ModifiersScreenDialog(modifiersScreen: modifiersScreen);
+        return ModifiersScreenDialog(modifiersScreen: modifierScreen);
       },
     );
-    setState(() {}); // Ensure UI updates after dialog closes
-    return value;
   }
 }
