@@ -20,24 +20,53 @@ class MyApp extends StatelessWidget {
 }
 
 class Item {
-  Item({required this.id, required this.name, required this.modifiers});
+  Item({required this.id, required this.name, required this.modifiersScreens});
 
   final String id;
   final String name;
-  List<Modifier> modifiers;
+  List<ModifiersScreen> modifiersScreens;
+}
+
+class ModifiersScreen {
+  ModifiersScreen(
+      {required this.id,
+      required this.min,
+      required this.max,
+      required this.freeCount,
+      required this.name,
+      required this.modifiers});
+
+  final String id;
+  final String name;
+  final int min;
+  final int max;
+  final int freeCount;
+  final List<Modifier> modifiers;
+
+  // Deep copy method to create a full copy of the modifiers screens tree
+  ModifiersScreen copy() {
+    return ModifiersScreen(
+      id: id,
+      min: min,
+      max: max,
+      freeCount: freeCount,
+      name: name,
+      modifiers: modifiers.map((m) => m.copy()).toList(),
+    );
+  }
 }
 
 class Modifier {
   Modifier(
       {required this.id,
       required this.name,
-      required this.modifiers,
+      required this.modifiersScreens,
       this.isSelected = false});
 
   final String id;
   final String name;
-  List<Modifier> modifiers;
   bool isSelected;
+  final List<ModifiersScreen> modifiersScreens;
 
   // Deep copy method to create a full copy of the modifier tree
   Modifier copy() {
@@ -45,7 +74,7 @@ class Modifier {
       id: id,
       name: name,
       isSelected: isSelected,
-      modifiers: modifiers.map((m) => m.copy()).toList(),
+      modifiersScreens: modifiersScreens.map((m) => m.copy()).toList(),
     );
   }
 }
@@ -55,31 +84,109 @@ final List<Item> items = [
   Item(
     name: 'Item 0',
     id: 'i0',
-    modifiers: [
-      Modifier(
-        name: 'Modifier 0.0',
-        id: 'm0',
+    modifiersScreens: [
+      ModifiersScreen(
+        id: 'ms0',
+        min: 1,
+        max: 2,
+        freeCount: 1,
+        name: 'Modifier Screen 0',
         modifiers: [
-          Modifier(name: 'Modifier 0.0.0', id: 'm0.0', modifiers: []),
-          Modifier(name: 'Modifier 0.0.1', id: 'm0.1', modifiers: []),
+          Modifier(
+            name: 'Modifier 0.0',
+            id: 'm0',
+            modifiersScreens: [
+              ModifiersScreen(
+                id: 'ms0.0',
+                min: 1,
+                max: 2,
+                freeCount: 1,
+                name: 'Modifier Screen 0.0',
+                modifiers: [
+                  Modifier(
+                      name: 'Modifier 0.0.0', id: 'm0.0', modifiersScreens: []),
+                  Modifier(
+                      name: 'Modifier 0.0.1', id: 'm0.1', modifiersScreens: []),
+                ],
+              ),
+              ModifiersScreen(
+                id: 'ms0.1',
+                min: 1,
+                max: 2,
+                name: 'Modifier Screen 0.1',
+                freeCount: 1,
+                modifiers: [
+                  Modifier(
+                      name: 'Modifier 0.1.0', id: 'm0.0', modifiersScreens: []),
+                  Modifier(
+                      name: 'Modifier 0.1.1', id: 'm0.1', modifiersScreens: []),
+                ],
+              ),
+            ],
+          ),
+          Modifier(
+            name: 'Modifier 0.1',
+            id: 'm1',
+            modifiersScreens: [],
+          ),
         ],
       ),
-      Modifier(
-        name: 'Modifier 0.1',
-        id: 'm1',
-        modifiers: [],
+      ModifiersScreen(
+        id: 'ms1',
+        min: 1,
+        max: 2,
+        freeCount: 1,
+        name: 'Modifier Screen 1',
+        modifiers: [
+          Modifier(
+            name: 'Modifier 1.0',
+            id: 'm2',
+            modifiersScreens: [
+              ModifiersScreen(
+                id: 'ms1.0',
+                min: 1,
+                max: 2,
+                freeCount: 1,
+                name: 'Modifier Screen 1.0',
+                modifiers: [
+                  Modifier(
+                      name: 'Modifier 1.0.0', id: 'm2.0', modifiersScreens: []),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     ],
   ),
   Item(
     name: 'Item 1',
     id: 'i1',
-    modifiers: [
-      Modifier(
-        name: 'Modifier 1.0',
-        id: 'm2',
+    modifiersScreens: [
+      ModifiersScreen(
+        id: 'ms1',
+        min: 1,
+        max: 2,
+        freeCount: 1,
+        name: 'Modifier Screen 1',
         modifiers: [
-          Modifier(name: 'Modifier 1.0.0', id: 'm2.0', modifiers: []),
+          Modifier(
+            name: 'Modifier 1.0',
+            id: 'm2',
+            modifiersScreens: [
+              ModifiersScreen(
+                id: 'ms1.0',
+                min: 1,
+                max: 2,
+                freeCount: 1,
+                name: 'Modifier Screen 1.0',
+                modifiers: [
+                  Modifier(
+                      name: 'Modifier 1.0.0', id: 'm2.0', modifiersScreens: []),
+                ],
+              ),
+            ],
+          ),
         ],
       ),
     ],
@@ -100,7 +207,11 @@ class ItemListScreen extends StatelessWidget {
         itemBuilder: (context, index) {
           return ListTile(
             title: Text(items[index].name),
-            onTap: () => _showModifiersDialog(context, items[index].modifiers),
+            onTap: () async {
+              for (final modifiersScreen in items[index].modifiersScreens) {
+                await _showModifiersScreenDialog(context, modifiersScreen);
+              }
+            },
           );
         },
       ),
@@ -108,58 +219,70 @@ class ItemListScreen extends StatelessWidget {
   }
 
   // Show Modifiers dialog
-  void _showModifiersDialog(BuildContext context, List<Modifier> modifiers) {
-    showDialog(
+  Future<T?> _showModifiersScreenDialog<T>(
+      BuildContext context, ModifiersScreen modifiersScreen) {
+    return showDialog(
       context: context,
       builder: (BuildContext context) {
-        return ModifierDialog(modifiers: modifiers);
+        return ModifiersScreenDialog(modifiersScreen: modifiersScreen);
       },
     );
   }
 }
 
-class ModifierDialog extends StatefulWidget {
-  final List<Modifier> modifiers;
+class ModifiersScreenDialog extends StatefulWidget {
+  final ModifiersScreen modifiersScreen;
 
-  const ModifierDialog({super.key, required this.modifiers});
+  const ModifiersScreenDialog({super.key, required this.modifiersScreen});
 
   @override
-  State<ModifierDialog> createState() => _ModifierDialogState();
+  State<ModifiersScreenDialog> createState() => _ModifiersScreenDialogState();
 }
 
-class _ModifierDialogState extends State<ModifierDialog> {
-  late List<Modifier> originalModifiersState;
+class _ModifiersScreenDialogState extends State<ModifiersScreenDialog> {
+  late ModifiersScreen originalModifiersScreenState;
 
   @override
   void initState() {
     super.initState();
     // Save a deep copy of the entire modifier tree state
-    originalModifiersState =
-        widget.modifiers.map((modifier) => modifier.copy()).toList();
+    originalModifiersScreenState = widget.modifiersScreen.copy();
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Modifiers'),
+      title: Text(widget.modifiersScreen.name),
       content: SizedBox(
-        height: 200,
+        height: 260,
         width: double.maxFinite,
-        child: ListView.builder(
-          itemCount: widget.modifiers.length,
-          itemBuilder: (context, index) {
-            final modifier = widget.modifiers[index];
-            return ListTile(
-              title: Text(modifier.name),
-              trailing: Icon(
-                modifier.isSelected
-                    ? Icons.check_box
-                    : Icons.check_box_outline_blank,
-                color: modifier.isSelected ? Colors.green : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Min: ${widget.modifiersScreen.min}'),
+            Text('Max: ${widget.modifiersScreen.max}'),
+            Text('Free Count: ${widget.modifiersScreen.freeCount}'),
+            const Divider(),
+            const Text('Modifiers: '),
+            Expanded(
+              child: ListView.builder(
+                itemCount: widget.modifiersScreen.modifiers.length,
+                itemBuilder: (context, index) {
+                  final modifier = widget.modifiersScreen.modifiers[index];
+                  return ListTile(
+                    title: Text(modifier.name),
+                    trailing: Icon(
+                      modifier.isSelected
+                          ? Icons.check_box
+                          : Icons.check_box_outline_blank,
+                      color: modifier.isSelected ? Colors.green : null,
+                    ),
+                    onTap: () => _onModifierTap(modifier),
+                  );
+                },
               ),
-              onTap: () => _onModifierTap(modifier),
-            );
-          },
+            ),
+          ],
         ),
       ),
       actions: [
@@ -183,51 +306,60 @@ class _ModifierDialogState extends State<ModifierDialog> {
   }
 
   // Handle tapping on a modifier
-  void _onModifierTap(Modifier modifier) {
-    setState(() {
-      if (modifier.isSelected) {
-        // Unselect modifier and its children recursively
-        _unselectModifiers(modifier);
-      } else {
-        // Select modifier and show its child modifiers
-        modifier.isSelected = true;
-        if (modifier.modifiers.isNotEmpty) {
-          _showModifiersDialog(context, modifier.modifiers);
+  void _onModifierTap(Modifier modifier) async {
+    if (modifier.isSelected) {
+      // Unselect modifier and its children recursively
+      setState(() => _unselectModifiers(modifier));
+    } else {
+      // Select modifier and show its child modifiers
+      setState(() => modifier.isSelected = true);
+      if (modifier.modifiersScreens.isNotEmpty) {
+        for (final modifierScreen in modifier.modifiersScreens) {
+          await _showModifiersDialog(context, modifierScreen);
         }
       }
-    });
+    }
   }
 
   // Unselect a modifier and its children recursively
   void _unselectModifiers(Modifier modifier) {
     modifier.isSelected = false;
-    for (var child in modifier.modifiers) {
-      _unselectModifiers(child);
+    for (final modifiersScreen in modifier.modifiersScreens) {
+      for (final modifier in modifiersScreen.modifiers) {
+        _unselectModifiers(modifier);
+      }
     }
   }
 
   // Revert to the original state when "Cancel" is tapped, including child modifiers
   void _revertToOriginalState() {
-    for (int i = 0; i < widget.modifiers.length; i++) {
-      _revertModifierState(widget.modifiers[i], originalModifiersState[i]);
+    for (int i = 0; i < widget.modifiersScreen.modifiers.length; i++) {
+      _revertModifierState(widget.modifiersScreen.modifiers[i],
+          originalModifiersScreenState.modifiers[i]);
     }
   }
 
   // Recursively revert modifier states
   void _revertModifierState(Modifier current, Modifier original) {
     current.isSelected = original.isSelected;
-    for (int i = 0; i < current.modifiers.length; i++) {
-      _revertModifierState(current.modifiers[i], original.modifiers[i]);
+    for (int i = 0; i < current.modifiersScreens.length; i++) {
+      for (int j = 0; j < current.modifiersScreens[i].modifiers.length; j++) {
+        _revertModifierState(current.modifiersScreens[i].modifiers[j],
+            original.modifiersScreens[i].modifiers[j]);
+      }
     }
   }
 
   // Show modifiers in a new dialog
-  void _showModifiersDialog(BuildContext context, List<Modifier> modifiers) {
-    showDialog(
+  Future<T?> _showModifiersDialog<T>(
+      BuildContext context, ModifiersScreen modifiersScreen) async {
+    final value = showDialog<T>(
       context: context,
       builder: (BuildContext context) {
-        return ModifierDialog(modifiers: modifiers);
+        return ModifiersScreenDialog(modifiersScreen: modifiersScreen);
       },
-    ).then((_) => setState(() {})); // Ensure UI updates after dialog cancels
+    );
+    setState(() {}); // Ensure UI updates after dialog closes
+    return value;
   }
 }
